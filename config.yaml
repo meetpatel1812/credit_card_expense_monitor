@@ -1,0 +1,37 @@
+cookie:
+  expiry_days: 30
+  key: some_signature_key
+  name: some_cookie_name
+credentials:
+  usernames:
+    abcd:
+      email: abcd@gmail.com
+      failed_login_attempts: 2
+      logged_in: false
+      name: meet
+      password: $2b$12$LltgQgznPCvjTljD1I.iL.z6iLUij4V1PhEsvOhGMTimYk5/TryP.
+    alavis2@mcmaster.ca:
+      email: alavis2@mcmaster.ca
+      logged_in: false
+      name: Marjan alavi
+      password: $2b$12$dbtluN/LOj3oIJz7BbiLj.Oa3kgaFRvJTqQhpk5vmhC.3yLVcrduO
+    meet:
+      email: meet@gmail.com
+      logged_in: false
+      name: meet
+      password: $2b$12$pWip1kAN8nBrCr6kL2NP3.FHZBOOSdyv3Jxv3XyD9kpai5Zfn9aAW
+    spandan99:
+      email: Spandan@gmail.com
+      failed_login_attempts: 0
+      logged_in: false
+      name: Spandan
+      password: $2b$12$NlEuLb7PHGH7kdfMBdtwo.Gr0MAQfP1q6PMiCeVdBZjHFu7aWaydK
+    srey:
+      email: srey@gmail.com
+      failed_login_attempts: 0
+      logged_in: false
+      name: srey
+      password: $2b$12$C4K1NSicjxhC75ACVPGJsOn0THqALvGvWZcaLLryGoieu0R5d8hDS
+pre-authorized:
+  emails:
+  - meetpatel8122001@gmail.com
