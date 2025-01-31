@@ -5,4 +5,4 @@ streamlit-authenticator
 matplotlib
 openpyxl
 schedule
-
+pip install sib-api-v3-sdk
