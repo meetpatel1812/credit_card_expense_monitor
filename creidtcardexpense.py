@@ -1,4 +1,8 @@
+import yaml
 import streamlit as st
+from yaml.loader import SafeLoader
+import streamlit_authenticator as stauth
+from streamlit_authenticator.utilities import LoginError
 import pandas as pd
 from datetime import datetime
 import sib_api_v3_sdk
@@ -7,45 +11,12 @@ import time
 import schedule
 import os
 from dotenv import load_dotenv
-import yaml
-from yaml.loader import SafeLoader
-import streamlit_authenticator as stauth
-from streamlit_authenticator.utilities import LoginError
-
-# Load environment variables from .env file
 load_dotenv()
-
-# Load configuration for authentication
+# Loading config file
 with open('config.yaml', 'r', encoding='utf-8') as file:
     config = yaml.load(file, Loader=SafeLoader)
 
-# Path to the Excel file
-EXCEL_FILE_PATH = 'expenses.xlsx'
-
-# Function to load expenses from Excel
-def load_expenses():
-    try:
-        df = pd.read_excel(EXCEL_FILE_PATH)
-        # Ensure 'Date' column is in the correct format
-        if 'Date' in df.columns:
-            df['Date'] = pd.to_datetime(df['Date'], errors='coerce').dt.strftime('%Y-%m-%d')
-        return df
-    except FileNotFoundError:
-        # If the file doesn't exist, create a new DataFrame
-        return pd.DataFrame(columns=['Date', 'Expense Name', 'Amount'])
-
-# Function to save expenses to Excel
-def save_expenses(df):
-    # Ensure 'Date' column is in the correct format before saving
-    if 'Date' in df.columns:
-        df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
-    df.to_excel(EXCEL_FILE_PATH, index=False)
-
-# Initialize session state for expenses
-if 'expenses' not in st.session_state:
-    st.session_state.expenses = load_expenses()
-
-# Create the authenticator object
+# Creating the authenticator object
 authenticator = stauth.Authenticate(
     config['credentials'],
     config['cookie']['name'],
@@ -53,14 +24,21 @@ authenticator = stauth.Authenticate(
     config['cookie']['expiry_days'],
 )
 
-# Function to send email using Brevo
+EXCEL_FILE_PATH = 'expenses.xlsx'
 def send_email(subject, body, to_email):
+    # Replace with your Brevo API key
     BREVO_API_KEY = os.getenv("BREVO_API_KEY")
+    
+    # Configure API key authorization
     configuration = sib_api_v3_sdk.Configuration()
     configuration.api_key['api-key'] = BREVO_API_KEY
+
+    # Create an instance of the API class
     api_instance = sib_api_v3_sdk.TransactionalEmailsApi(sib_api_v3_sdk.ApiClient(configuration))
-    sender = {"name": "Expense Tracker", "email": "meetpatelcompany@gmail.com"}
-    receiver = [{"email": to_email}]
+
+    # Create the email
+    sender = {"name": "Credit Card Monitor", "email": "meetpatelcompany@gmail.com"}  # Sender details
+    receiver = [{"email": to_email}]  # Recipient details
     send_smtp_email = sib_api_v3_sdk.SendSmtpEmail(
         to=receiver,
         html_content=body,
@@ -68,12 +46,11 @@ def send_email(subject, body, to_email):
         subject=subject
     )
     try:
-        api_instance.send_transac_email(send_smtp_email)
+        api_response = api_instance.send_transac_email(send_smtp_email)
         st.success("Email sent successfully!")
     except ApiException as e:
         st.error(f"Failed to send email: {e}")
 
-# Function to generate the email body
 def generate_email_body(expenses):
     total_expense = expenses['Amount'].sum()
     html = f"""
@@ -84,86 +61,133 @@ def generate_email_body(expenses):
     """
     return html
 
-# Function to send daily email
-def send_daily_email():
-    to_email = "meetpatel8122001@gmail.com"
-    subject = "Daily Expense Report"
-    body = generate_email_body(st.session_state.expenses)
-    send_email(subject, body, to_email)
 
-# Schedule daily email at 8:00 AM
+# def send_daily_email():
+#     to_email = "meetpatel8122001@gmail.com"
+#     subject = "Credit Card Expense Report"
+#     body = generate_email_body(load_data())
+#     send_email(subject, body, to_email)
 
+def load_data():
+    try:
+        df = pd.read_excel(EXCEL_FILE_PATH)
+        # Convert 'Date' column to string
+        if 'Date' in df.columns:
+            df['Date'] = pd.to_datetime(df['Date'], errors='coerce').dt.strftime('%Y-%m-%d')
+        return df
+    except FileNotFoundError:
+        # Initialize DataFrame with columns if the file does not exist
+        return pd.DataFrame(columns=['Date', 'Expense Name', 'Amount'])
 
-# send_daily_email()
+def save_data(df):
+    # Convert 'Date' column to datetime before saving
+    if 'Date' in df.columns:
+        df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
+    df.to_excel(EXCEL_FILE_PATH, index=False)
 
-# Login widget
+# Creating a login widget
 try:
     authenticator.login()
 except LoginError as e:
     st.error(e)
 
-# Check authentication status
 if st.session_state["authentication_status"]:
-    st.write(f'Welcome *{st.session_state["name"]}*')
-    authenticator.logout()
-
-    # Sidebar for adding, editing, and removing expenses
-    with st.sidebar:
-        st.header("Add/Edit/Remove Expense")
-        
-        # Date input
-        expense_date = st.date_input("Date", datetime.today())
-        
-        # Expense name input
-        expense_name = st.text_input("Expense Name")
-        
-        # Amount input
-        amount = st.number_input("Amount", min_value=0.0, format="%.2f")
-        
-        # Add expense button
-        if st.button("Add Expense"):
-            new_expense = pd.DataFrame([[expense_date, expense_name, amount]], columns=['Date', 'Expense Name', 'Amount'])
-            st.session_state.expenses = pd.concat([st.session_state.expenses, new_expense], ignore_index=True)
-            save_expenses(st.session_state.expenses)  # Save to Excel
-        
-        # Edit expense
-        st.subheader("Edit Expense")
-        edit_index = st.number_input("Row Index to Edit", min_value=0, max_value=len(st.session_state.expenses)-1, value=0)
-        if st.button("Edit Selected Expense"):
-            st.session_state.expenses.at[edit_index, 'Date'] = expense_date
-            st.session_state.expenses.at[edit_index, 'Expense Name'] = expense_name
-            st.session_state.expenses.at[edit_index, 'Amount'] = amount
-            save_expenses(st.session_state.expenses)  # Save to Excel
-        
-        # Remove expense
-        st.subheader("Remove Expense")
-        remove_index = st.number_input("Row Index to Remove", min_value=0, max_value=len(st.session_state.expenses)-1, value=0)
-        if st.button("Remove Selected Expense"):
-            st.session_state.expenses = st.session_state.expenses.drop(index=remove_index).reset_index(drop=True)
-            save_expenses(st.session_state.expenses)  # Save to Excel
-
-    # Main screen
-    st.title("Expense Tracker")
-
-    # Display total expense
-    total_expense = st.session_state.expenses['Amount'].sum()
-    st.metric("Total Expense", f"${total_expense:.2f}")
-
-    # Display expenses in a table
-    st.dataframe(st.session_state.expenses)
-
-    # Download expenses as CSV
-    st.download_button(
-        label="Download Expenses as CSV",
-        data=st.session_state.expenses.to_csv(index=False).encode('utf-8'),
-        file_name='expenses.csv',
-        mime='text/csv',
-    )
-    schedule.every().day.at("08:00").do(send_daily_email)
     
-    # Run the scheduler in the background
+    st.write(f'Welcome *{st.session_state["name"]}*')
+    st.sidebar.header('Add/Edit Expense')
+
+    date = st.sidebar.date_input('Date')
+    expense_name = st.sidebar.text_input('Expense Name')
+    amount = st.sidebar.number_input('Amount', min_value=0.0, format="%.2f")
+
+    # Handling form submission
+    if st.sidebar.button('Submit'):
+        new_row = pd.DataFrame({
+            'Date': [date],
+            'Expense Name': [expense_name],
+            'Amount': [amount]
+        })
+
+        df = load_data()  # Reload data from Excel
+
+        # Add new row to DataFrame
+        df = pd.concat([df, new_row], ignore_index=True)
+
+        # Save DataFrame to Excel
+        save_data(df)
+
+    # Display existing entries with edit options
+    st.title('Credit Card Expenses Dashboard')
+
+    df = load_data()  # Reload data from Excel
+
+    # Display the total expense
+    total_expense = df['Amount'].sum()
+    st.write(f'### Total Expense: ${total_expense:.2f}')
+
+    # Editing selected entry
+    st.sidebar.header('Edit Expense')
+
+    # Select an entry to edit
+    edit_index = st.sidebar.selectbox('Select Expense to Edit', options=df.index, format_func=lambda x: f"{df.loc[x, 'Expense Name']} - {df.loc[x, 'Amount']}")
+
+    if edit_index is not None:
+        # Find the row to edit
+        edit_row = df.loc[edit_index]
+        
+        st.sidebar.write(f"Editing Expense: {edit_row['Expense Name']}")
+
+        # Pre-fill the sidebar inputs with the existing data
+        date = st.sidebar.date_input('Date', value=pd.to_datetime(edit_row['Date']), key='edit_date')
+        expense_name = st.sidebar.text_input('Expense Name', value=edit_row['Expense Name'], key='edit_expense_name')
+        amount = st.sidebar.number_input('Amount', min_value=0.0, format="%.2f", value=float(edit_row['Amount']), key='edit_amount')
+
+        if st.sidebar.button('Update'):
+            updated_row = pd.DataFrame({
+                'Date': [date],
+                'Expense Name': [expense_name],
+                'Amount': [amount]
+            })
+
+            df = load_data()  # Reload data from Excel
+            # Update the row
+            df.loc[edit_index] = updated_row.iloc[0]
+
+            # Save DataFrame to Excel
+            save_data(df)
+
+    # Display the DataFrame
+    st.write('### Expenses DataFrame')
+    st.dataframe(df)
+
+    # Delete selected entry
+    st.sidebar.header('Delete Expense')
+
+    # Select an entry to delete
+    delete_index = st.sidebar.selectbox('Select Expense to Delete', options=df.index, format_func=lambda x: f"{df.loc[x, 'Expense Name']} - {df.loc[x, 'Amount']}")
+
+    if st.sidebar.button('Delete'):
+        df = load_data()  # Reload data from Excel
+        df = df.drop(delete_index)
+        save_data(df)
+        st.rerun()  # Use st.rerun() instead of st.experimental_rerun()
+
+    st.subheader("Email Settings")
+    to_email = st.text_input("Enter your email to receive test reports")
+    if st.button("Send Test Email"):
+        if to_email:
+            subject = "Test Expense Report"
+            body = generate_email_body(load_data())
+            send_email(subject, body, to_email)
+        else:
+            st.error("Please enter a valid email address.")
+        
+    authenticator.logout()
+    # schedule.every().day.at("02:45").do(send_daily_email)
+    # send_daily_email()
     while True:
-        schedule.run_pending()
+        # send_daily_email()
+        # schedule.run_pending()
         time.sleep(1)
 
 elif st.session_state["authentication_status"] is False:
@@ -171,6 +195,6 @@ elif st.session_state["authentication_status"] is False:
 elif st.session_state["authentication_status"] is None:
     st.warning('Please enter your username and password')
 
-# Save configuration file
+# Saving config file
 with open('config.yaml', 'w', encoding='utf-8') as file:
     yaml.dump(config, file, default_flow_style=False)
