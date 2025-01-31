@@ -173,7 +173,9 @@ if st.session_state["authentication_status"]:
         st.rerun()  # Use st.rerun() instead of st.experimental_rerun()
 
     st.subheader("Email Settings")
-    to_email = st.text_input("Enter your email to receive test reports")
+    default_email = "meetpatel8122001@gmail.com"
+    to_email = st.text_input("Enter your email to receive test reports", value=default_email)
+    # to_email = st.text_input("Enter your email to receive test reports")
     if st.button("Send Test Email"):
         if to_email:
             subject = "Test Expense Report"
